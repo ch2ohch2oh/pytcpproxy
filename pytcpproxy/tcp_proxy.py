@@ -1,3 +1,4 @@
+import argparse
 import socket
 import threading
 
@@ -25,21 +26,31 @@ def handle_client(client_socket, remote_host, remote_port):
 
 
 def main():
-    local_host = "0.0.0.0"
-    local_port = 8000
-    remote_host = "localhost"  # Replace with your target host
-    remote_port = 12345  # Replace with your target port
+    parser = argparse.ArgumentParser(description="A simple TCP proxy.")
+    parser.add_argument("remote_host", help="The remote host to forward traffic to.")
+    parser.add_argument(
+        "remote_port", type=int, help="The remote port to forward traffic to."
+    )
+    parser.add_argument(
+        "--local-host", default="0.0.0.0", help="The local host to listen on."
+    )
+    parser.add_argument(
+        "--local-port", type=int, default=8000, help="The local port to listen on."
+    )
+    args = parser.parse_args()
 
     server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    server.bind((local_host, local_port))
+    server.bind((args.local_host, args.local_port))
     server.listen(5)
-    print(f"[*] Listening on {local_host}:{local_port}")
+    print(f"[*] Listening on {args.local_host}:{args.local_port}")
+    print(f"[*] Forwarding traffic to {args.remote_host}:{args.remote_port}")
 
     while True:
         client_socket, addr = server.accept()
         print(f"[*] Accepted connection from {addr[0]}:{addr[1]}")
         thread = threading.Thread(
-            target=handle_client, args=(client_socket, remote_host, remote_port)
+            target=handle_client,
+            args=(client_socket, args.remote_host, args.remote_port),
         )
         thread.start()
 

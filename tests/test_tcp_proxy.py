@@ -1,10 +1,11 @@
 import socket
+import sys
 import threading
 import time
 
 import pytest
 
-from pypxy.proxy import main as proxy_main
+from pytcpproxy.tcp_proxy import main as proxy_main
 
 
 @pytest.fixture
@@ -29,11 +30,14 @@ def echo_server():
 
 @pytest.fixture
 def proxy_server():
+    original_argv = sys.argv
+    sys.argv = ["pytcpproxy", "localhost", "12345"]
     proxy_thread = threading.Thread(target=proxy_main)
     proxy_thread.daemon = True
     proxy_thread.start()
     time.sleep(1)  # Give the proxy server time to start
     yield
+    sys.argv = original_argv
 
 
 def test_tcp_proxy(echo_server, proxy_server):

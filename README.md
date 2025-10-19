@@ -1,4 +1,4 @@
-# pypxy
+# pytcpproxy
 
 A simple Python TCP proxy service.
 
@@ -30,10 +30,20 @@ A simple Python TCP proxy service.
 To start the proxy server, run:
 
 ```bash
-python3 -m pypxy.proxy
+python3 -m pypxy.proxy <remote_host> <remote_port>
 ```
 
-The proxy will listen on port 8000 and forward connections to a pre-configured host and port (default: `localhost:12345`). You can change the target in `pypxy/proxy.py`.
+- `<remote_host>`: The remote host to forward traffic to.
+- `<remote_port>`: The remote port to forward traffic to.
+
+You can also specify the local host and port to listen on:
+
+```bash
+python3 -m pypxy.proxy <remote_host> <remote_port> --local-host <local_host> --local-port <local_port>
+```
+
+- `--local-host`: The local host to listen on (default: `0.0.0.0`).
+- `--local-port`: The local port to listen on (default: `8000`).
 
 ## Running Tests
 

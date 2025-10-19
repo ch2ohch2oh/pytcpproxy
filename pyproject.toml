@@ -1,4 +1,4 @@
-[tool.ruff]
+[tool.ruff.lint]
 select = ["E", "F", "I"]
 ignore = []
 
