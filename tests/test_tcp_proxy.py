@@ -102,3 +102,22 @@ def test_connection_count(proxy_server):
 
     time.sleep(0.1)
     assert proxy_server.connection_count == 0
+
+
+def test_multiple_connections(proxy_server):
+    assert proxy_server.connection_count == 0
+
+    sockets = []
+    for _ in range(5):
+        client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        client_socket.connect((proxy_server.local_host, proxy_server.local_port))
+        sockets.append(client_socket)
+
+    time.sleep(0.1)
+    assert proxy_server.connection_count == 5
+
+    for client_socket in sockets:
+        client_socket.close()
+
+    time.sleep(0.1)
+    assert proxy_server.connection_count == 0
