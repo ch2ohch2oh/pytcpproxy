@@ -6,6 +6,23 @@ connection_count = 0
 connection_lock = threading.Lock()
 
 
+def forward(src, dst):
+    try:
+        while True:
+            data = src.recv(4096)
+            if not data:
+                break
+            dst.sendall(data)
+    except OSError as e:
+        print(f"[*] OSError in forward: {e}")
+    finally:
+        try:
+            src.shutdown(socket.SHUT_RD)
+            dst.shutdown(socket.SHUT_WR)
+        except OSError as e:
+            print(f"[*] OSError on shutdown: {e}")
+
+
 def handle_client(client_socket, remote_host, remote_port):
     remote_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     try:
@@ -15,22 +32,6 @@ def handle_client(client_socket, remote_host, remote_port):
         client_socket.close()
         decrement_connection_count()
         return
-
-    def forward(src, dst):
-        try:
-            while True:
-                data = src.recv(4096)
-                if not data:
-                    break
-                dst.sendall(data)
-        except OSError:
-            pass
-        finally:
-            try:
-                src.shutdown(socket.SHUT_RD)
-                dst.shutdown(socket.SHUT_WR)
-            except OSError:
-                pass
 
     t1 = threading.Thread(target=forward, args=(client_socket, remote_socket))
     t2 = threading.Thread(target=forward, args=(remote_socket, client_socket))
