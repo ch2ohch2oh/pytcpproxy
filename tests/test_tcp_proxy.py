@@ -22,7 +22,7 @@ def echo_server():
     server_socket.bind(("localhost", port))
     server_socket.listen(1)
     server_socket.settimeout(1)
-    
+
     def handle_client(client_socket):
         try:
             while True:

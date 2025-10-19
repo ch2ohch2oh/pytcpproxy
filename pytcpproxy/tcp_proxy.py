@@ -9,10 +9,14 @@ class TCPProxy:
         self.local_port = local_port
         self.remote_host = remote_host
         self.remote_port = remote_port
-        self.connection_count = 0
+        self._connection_count = 0
         self.connection_lock = threading.Lock()
         self.running = False
         self.server_socket = None
+
+    @property
+    def connection_count(self):
+        return self._connection_count
 
     def run(self):
         self.running = True
@@ -30,8 +34,8 @@ class TCPProxy:
                 print(f"[*] Accepted connection from {addr[0]}:{addr[1]}")
 
                 with self.connection_lock:
-                    self.connection_count += 1
-                    print(f"[*] Current connections: {self.connection_count}")
+                    self._connection_count += 1
+                    print(f"[*] New connection. Connections: {self._connection_count}")
 
                 thread = threading.Thread(
                     target=self.handle_client,
@@ -93,10 +97,8 @@ class TCPProxy:
 
     def decrement_connection_count(self):
         with self.connection_lock:
-            self.connection_count -= 1
-            print(
-                f"[*] Connection closed. Current connections: {self.connection_count}"
-            )
+            self._connection_count -= 1
+            print(f"[*] Connection closed. Connections: {self._connection_count}")
 
     def shutdown(self):
         self.running = False
