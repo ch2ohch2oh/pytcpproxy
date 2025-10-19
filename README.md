@@ -13,16 +13,16 @@ A simple Python TCP proxy service.
 
 2. **Install dependencies:**
 
-   For a production environment, install only the required dependencies:
+   To install the main dependencies, run:
 
    ```bash
-   pip install -r requirements.txt
+   pip install .
    ```
 
-   For a development environment, which includes all testing and linting tools, run:
+   To install the development dependencies, which includes all testing and linting tools, run:
 
    ```bash
-   pip install -r requirements-dev.txt
+   pip install -e .[dev]
    ```
 
 ## Usage
