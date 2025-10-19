@@ -1,49 +1,87 @@
 import socket
-import sys
 import threading
 import time
 
 import pytest
 
-from pytcpproxy.tcp_proxy import main as proxy_main
+from pytcpproxy.tcp_proxy import TCPProxy
+
+
+def get_free_port():
+    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    s.bind(("", 0))
+    port = s.getsockname()[1]
+    s.close()
+    return port
 
 
 @pytest.fixture
 def echo_server():
-    def handle_echo(client_socket):
-        while True:
-            data = client_socket.recv(1024)
-            if not data:
-                break
-            client_socket.sendall(data)
-        client_socket.close()
+    port = get_free_port()
+    server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    server_socket.bind(("localhost", port))
+    server_socket.listen(1)
+    server_socket.settimeout(1)
+    
+    def handle_client(client_socket):
+        try:
+            while True:
+                data = client_socket.recv(1024)
+                if not data:
+                    break
+                client_socket.sendall(data)
+        finally:
+            client_socket.close()
 
-    server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    server.bind(("localhost", 12345))
-    server.listen(1)
-    server_thread = threading.Thread(target=lambda: handle_echo(server.accept()[0]))
-    server_thread.daemon = True
+    def run_server():
+        while True:
+            try:
+                client_socket, _ = server_socket.accept()
+                threading.Thread(target=handle_client, args=(client_socket,)).start()
+            except OSError:
+                break
+
+    server_thread = threading.Thread(target=run_server)
     server_thread.start()
-    yield
-    server.close()
+
+    yield "localhost", port
+
+    server_socket.close()
+    server_thread.join()
 
 
 @pytest.fixture
-def proxy_server():
-    original_argv = sys.argv
-    sys.argv = ["pytcpproxy", "localhost", "12345"]
-    proxy_thread = threading.Thread(target=proxy_main)
-    proxy_thread.daemon = True
+def proxy_server(echo_server):
+    remote_host, remote_port = echo_server
+    local_port = get_free_port()
+    proxy = TCPProxy("localhost", local_port, remote_host, remote_port)
+
+    proxy_thread = threading.Thread(target=proxy.run)
     proxy_thread.start()
-    time.sleep(1)  # Give the proxy server time to start
-    yield
-    sys.argv = original_argv
+
+    # Wait for the proxy to be ready
+    for _ in range(10):
+        try:
+            with socket.create_connection(("localhost", local_port), timeout=0.1):
+                break
+        except (OSError, ConnectionRefusedError):
+            time.sleep(0.1)
+    else:
+        pytest.fail("Proxy server did not start in time")
+
+    yield "localhost", local_port
+
+    proxy.shutdown()
+    proxy_thread.join()
 
 
-def test_tcp_proxy(echo_server, proxy_server):
+def test_tcp_proxy(proxy_server):
+    proxy_host, proxy_port = proxy_server
     client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    client_socket.connect(("localhost", 8000))
-    client_socket.sendall(b"hello world")
-    response = client_socket.recv(1024)
-    client_socket.close()
-    assert response == b"hello world"
+    try:
+        client_socket.connect((proxy_host, proxy_port))
+        client_socket.sendall(b"hello world")
+        response = client_socket.recv(1024)
+        assert response == b"hello world"
+    finally:
+        client_socket.close()
