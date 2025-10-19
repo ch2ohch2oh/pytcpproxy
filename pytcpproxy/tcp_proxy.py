@@ -13,6 +13,9 @@ class TCPProxy:
         self._connection_lock = threading.Lock()
         self.running = False
         self._server_socket = None
+        self._threads = []
+        self._client_sockets = []
+        self._client_sockets_lock = threading.Lock()
 
     @property
     def connection_count(self):
@@ -41,12 +44,16 @@ class TCPProxy:
                 client_socket, addr = self._server_socket.accept()
                 print(f"[*] Accepted connection from {addr[0]}:{addr[1]}")
 
+                with self._client_sockets_lock:
+                    self._client_sockets.append(client_socket)
+
                 self._update_connection_count(1)
 
                 thread = threading.Thread(
                     target=self.handle_client,
                     args=(client_socket,),
                 )
+                self._threads.append(thread)
                 thread.start()
             except socket.timeout:
                 continue
@@ -79,6 +86,9 @@ class TCPProxy:
         client_socket.close()
         remote_socket.close()
 
+        with self._client_sockets_lock:
+            self._client_sockets.remove(client_socket)
+
         self._update_connection_count(-1)
 
     def forward(self, src, dst):
@@ -91,20 +101,31 @@ class TCPProxy:
                     dst.sendall(data)
                 except socket.timeout:
                     break
-        except OSError as e:
-            print(f"[*] OSError in forward: {e}")
+        except OSError:
+            pass
         finally:
             try:
                 src.shutdown(socket.SHUT_RD)
                 dst.shutdown(socket.SHUT_WR)
-            except OSError as e:
-                if e.errno != 107:
-                    print(f"[*] OSError on shutdown: {e}")
+            except OSError:
+                pass
 
     def shutdown(self):
         self.running = False
         if self._server_socket:
             self._server_socket.close()
+
+        with self._client_sockets_lock:
+            sockets_to_shutdown = list(self._client_sockets)
+
+        for client_socket in sockets_to_shutdown:
+            try:
+                client_socket.shutdown(socket.SHUT_RDWR)
+            except OSError:
+                pass
+
+        for thread in self._threads:
+            thread.join()
 
 
 def main():

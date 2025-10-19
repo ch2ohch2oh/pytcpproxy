@@ -77,6 +77,34 @@ def proxy_server(echo_server):
     proxy_thread.join()
 
 
+@pytest.fixture
+def proxy_server_no_shutdown(echo_server):
+    remote_host, remote_port = echo_server
+    local_port = get_free_port()
+    proxy = TCPProxy("localhost", local_port, remote_host, remote_port)
+
+    proxy_thread = threading.Thread(target=proxy.run)
+    proxy_thread.start()
+
+    # Wait for the proxy to be ready
+    for _ in range(10):
+        try:
+            with socket.create_connection(("localhost", local_port), timeout=0.1):
+                break
+        except (OSError, ConnectionRefusedError):
+            time.sleep(0.1)
+    else:
+        pytest.fail("Proxy server did not start in time")
+
+    time.sleep(0.1)
+
+    yield proxy
+
+    if proxy.running:
+        proxy.shutdown()
+    proxy_thread.join()
+
+
 def test_tcp_proxy(proxy_server):
     proxy_host, proxy_port = proxy_server.local_host, proxy_server.local_port
     client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -121,3 +149,27 @@ def test_multiple_connections(proxy_server):
 
     time.sleep(0.1)
     assert proxy_server.connection_count == 0
+
+
+def test_shutdown_frees_resources(proxy_server_no_shutdown):
+    proxy = proxy_server_no_shutdown
+    assert proxy.connection_count == 0
+
+    sockets = []
+    for _ in range(5):
+        client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        client_socket.connect((proxy.local_host, proxy.local_port))
+        sockets.append(client_socket)
+
+    time.sleep(0.1)
+    assert proxy.connection_count == 5
+
+    proxy.shutdown()
+
+    for thread in proxy._threads:
+        assert not thread.is_alive()
+
+    assert len(proxy._client_sockets) == 0
+
+    for s in sockets:
+        assert s.recv(1) == b''
