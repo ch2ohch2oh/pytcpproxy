@@ -18,6 +18,14 @@ class TCPProxy:
     def connection_count(self):
         return self._connection_count
 
+    def _update_connection_count(self, value):
+        with self._connection_lock:
+            self._connection_count += value
+            if value > 0:
+                print(f"[*] New connection. Connections: {self._connection_count}")
+            else:
+                print(f"[*] Connection closed. Connections: {self._connection_count}")
+
     def run(self):
         self.running = True
         self._server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -33,9 +41,7 @@ class TCPProxy:
                 client_socket, addr = self._server_socket.accept()
                 print(f"[*] Accepted connection from {addr[0]}:{addr[1]}")
 
-                with self._connection_lock:
-                    self._connection_count += 1
-                    print(f"[*] New connection. Connections: {self._connection_count}")
+                self._update_connection_count(1)
 
                 thread = threading.Thread(
                     target=self.handle_client,
@@ -56,7 +62,7 @@ class TCPProxy:
                 f"[*] Failed to connect to {self.remote_host}:{self.remote_port}: {e}"
             )
             client_socket.close()
-            self.decrement_connection_count()
+            self._update_connection_count(-1)
             return
 
         client_socket.settimeout(60)
@@ -73,7 +79,7 @@ class TCPProxy:
         client_socket.close()
         remote_socket.close()
 
-        self.decrement_connection_count()
+        self._update_connection_count(-1)
 
     def forward(self, src, dst):
         try:
@@ -94,11 +100,6 @@ class TCPProxy:
             except OSError as e:
                 if e.errno != 107:
                     print(f"[*] OSError on shutdown: {e}")
-
-    def decrement_connection_count(self):
-        with self._connection_lock:
-            self._connection_count -= 1
-            print(f"[*] Connection closed. Connections: {self._connection_count}")
 
     def shutdown(self):
         self.running = False
