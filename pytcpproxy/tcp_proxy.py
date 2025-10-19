@@ -10,9 +10,9 @@ class TCPProxy:
         self.remote_host = remote_host
         self.remote_port = remote_port
         self._connection_count = 0
-        self.connection_lock = threading.Lock()
+        self._connection_lock = threading.Lock()
         self.running = False
-        self.server_socket = None
+        self._server_socket = None
 
     @property
     def connection_count(self):
@@ -20,20 +20,20 @@ class TCPProxy:
 
     def run(self):
         self.running = True
-        self.server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        self.server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        self.server_socket.bind((self.local_host, self.local_port))
-        self.server_socket.listen(5)
-        self.server_socket.settimeout(1)
+        self._server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self._server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        self._server_socket.bind((self.local_host, self.local_port))
+        self._server_socket.listen(5)
+        self._server_socket.settimeout(1)
         print(f"[*] Listening on {self.local_host}:{self.local_port}")
         print(f"[*] Forwarding traffic to {self.remote_host}:{self.remote_port}")
 
         while self.running:
             try:
-                client_socket, addr = self.server_socket.accept()
+                client_socket, addr = self._server_socket.accept()
                 print(f"[*] Accepted connection from {addr[0]}:{addr[1]}")
 
-                with self.connection_lock:
+                with self._connection_lock:
                     self._connection_count += 1
                     print(f"[*] New connection. Connections: {self._connection_count}")
 
@@ -96,14 +96,14 @@ class TCPProxy:
                     print(f"[*] OSError on shutdown: {e}")
 
     def decrement_connection_count(self):
-        with self.connection_lock:
+        with self._connection_lock:
             self._connection_count -= 1
             print(f"[*] Connection closed. Connections: {self._connection_count}")
 
     def shutdown(self):
         self.running = False
-        if self.server_socket:
-            self.server_socket.close()
+        if self._server_socket:
+            self._server_socket.close()
 
 
 def main():
