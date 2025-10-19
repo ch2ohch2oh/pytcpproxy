@@ -69,14 +69,16 @@ def proxy_server(echo_server):
     else:
         pytest.fail("Proxy server did not start in time")
 
-    yield "localhost", local_port
+    time.sleep(0.1)
+
+    yield proxy
 
     proxy.shutdown()
     proxy_thread.join()
 
 
 def test_tcp_proxy(proxy_server):
-    proxy_host, proxy_port = proxy_server
+    proxy_host, proxy_port = proxy_server.local_host, proxy_server.local_port
     client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     try:
         client_socket.connect((proxy_host, proxy_port))
@@ -85,3 +87,18 @@ def test_tcp_proxy(proxy_server):
         assert response == b"hello world"
     finally:
         client_socket.close()
+
+
+def test_connection_count(proxy_server):
+    assert proxy_server.connection_count == 0
+
+    client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    try:
+        client_socket.connect((proxy_server.local_host, proxy_server.local_port))
+        time.sleep(0.1)
+        assert proxy_server.connection_count == 1
+    finally:
+        client_socket.close()
+
+    time.sleep(0.1)
+    assert proxy_server.connection_count == 0
